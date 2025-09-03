@@ -1,14 +1,57 @@
 let gameState = 'waiting'; // waiting, playing, success, gameOver
 let timeLeft = 10.0;
-let obstacle;
 let player;
 let selectedOption = null;
-let dangerZone;
-const DANGER_THRESHOLD = 100; // Distancia a la que se activa la advertencia
+let blocks = [];
+let coins = [];
+let goombas = [];
+let platformTexture;
+let brickTexture;
+let coinTexture;
+let goombaTexture;
+const WORLD_SIZE = 3000; // Mundo mucho más grande
+const BLOCK_SIZE = 100; // Bloques más grandes para mejor escala
+
+// Precarga de texturas y recursos
+function preload() {
+    // Usar colores básicos inicialmente para evitar problemas de carga
+    platformTexture = createGraphics(64, 64);
+    platformTexture.background(100, 200, 100);
+    
+    brickTexture = createGraphics(64, 64);
+    brickTexture.background(200, 100, 50);
+    
+    coinTexture = createGraphics(64, 64);
+    coinTexture.background(255, 215, 0);
+    
+    goombaTexture = createGraphics(64, 64);
+    goombaTexture.background(139, 69, 19);
+}
 
 function setup() {
-    const canvas = createCanvas(800, 600, WEBGL);
+    // Crear el canvas y configurarlo
+    const canvas = createCanvas(windowWidth, windowHeight, WEBGL);
     canvas.parent('game-canvas');
+    
+    // Configuración básica de WebGL
+    setAttributes('antialias', true);
+    
+    // Configuración de la perspectiva
+    perspective(PI / 3.0, width / height, 0.1, 3000);
+    
+    // Configuración de la iluminación inicial
+    ambientLight(100);
+    directionalLight(255, 255, 255, 0, 1, -1);
+    
+    // Hacer que el canvas se ajuste automáticamente al tamaño de la ventana
+    window.addEventListener('resize', () => {
+        resizeCanvas(windowWidth, windowHeight);
+        perspective(PI / 3.0, width / height, 0.1, 3000);
+    });
+    
+    // Inicializar el mundo y el jugador
+    createMarioWorld();
+    player = new Player();
     
     // Inicializar el obstáculo
     obstacle = new Obstacle();
@@ -19,7 +62,21 @@ function setup() {
 }
 
 function draw() {
-    background(0);
+    background(135, 206, 235); // Color de cielo
+    push();
+    noStroke();
+    fill(255);
+    // Añadir algunas nubes básicas en el fondo
+    for(let i = 0; i < 10; i++) {
+        push();
+        translate(
+            sin(frameCount * 0.001 + i) * width, 
+            -200, 
+            cos(frameCount * 0.001 + i) * height
+        );
+        box(100, 50, 100);
+        pop();
+    }
     
     switch(gameState) {
         case 'waiting':
@@ -37,18 +94,135 @@ function draw() {
 
 class Player {
     constructor() {
-        this.position = createVector(0, 0, 200);
+        this.position = createVector(0, 100, 200);
+        this.velocity = createVector(0, 0, 0);
         this.rotation = 0;
+        this.speed = 25;
+        this.lookSpeed = 0.03;
+        this.renderDistance = 2000;
+        this.fov = 90;
+        this.minFov = 60;
+        this.maxFov = 120;
+        this.bobbingAmount = 0;
+        this.bobbingSpeed = 0.1;
+        this.runningEffect = 0;
+        this.isMoving = false;
+        this.lookX = 0;
+        this.lookZ = -1;
+        this.gravity = 0.5;
+        this.jumping = false;
+        this.score = 0;
     }
 
     update() {
-        // Actualizar la posición basada en datos del puerto serie
-        // Por ahora, solo mantenemos la vista centrada en el obstáculo
+        // Gravedad y salto
+        this.velocity.y += this.gravity;
+        this.position.y += this.velocity.y;
+        
+        // Limitar caída y detectar suelo
+        if (this.position.y > 100) {
+            this.position.y = 100;
+            this.velocity.y = 0;
+            this.jumping = false;
+        }
+
+        // Movimiento con WASD
+        let moveX = 0;
+        let moveZ = 0;
+        this.isMoving = false;
+
+        // Efecto de correr con Shift
+        let currentSpeed = this.speed;
+        if (keyIsDown(SHIFT)) {
+            currentSpeed *= 1.5;
+            this.bobbingSpeed = 0.15;
+            this.bobbingAmount = 5;
+        } else {
+            this.bobbingSpeed = 0.1;
+            this.bobbingAmount = 3;
+        }
+
+        if (keyIsDown(87)) { // W - Adelante
+            moveZ = -1;
+            this.isMoving = true;
+        }
+        if (keyIsDown(83)) { // S - Atrás
+            moveZ = 1;
+            this.isMoving = true;
+        }
+        if (keyIsDown(65)) { // A - Izquierda
+            moveX = -1;
+            this.isMoving = true;
+        }
+        if (keyIsDown(68)) { // D - Derecha
+            moveX = 1;
+            this.isMoving = true;
+        }
+        
+        // Aplicar movimiento en la dirección de la mirada
+        if (moveX !== 0 || moveZ !== 0) {
+            let moveAngle = atan2(moveZ, moveX);
+            this.position.x += cos(moveAngle + this.rotation) * this.speed;
+            this.position.z += sin(moveAngle + this.rotation) * this.speed;
+        }
+
+        // Rotación con el mouse
+        if (mouseX !== pmouseX) {
+            this.rotation -= (mouseX - pmouseX) * 0.005;
+        }
+
+        // Salto con espacio
+        if (keyIsDown(32) && !this.jumping) { // Espacio
+            this.velocity.y = -15;
+            this.jumping = true;
+        }
+
+        // Actualizar dirección de la mirada
+        this.lookX = sin(this.rotation);
+        this.lookZ = -cos(this.rotation);
+
+        // Ajustar FOV con las teclas Q y E
+        if (keyIsDown(81)) { // Q - Reducir FOV
+            this.fov = max(this.minFov, this.fov - 1);
+        }
+        if (keyIsDown(69)) { // E - Aumentar FOV
+            this.fov = min(this.maxFov, this.fov + 1);
+        }
+
+        // Actualizar perspectiva con el FOV actual
+        perspective(radians(this.fov), width / height, 0.1, this.renderDistance);
+
+        // Actualizar cámara con efecto de bobbing
+        let bobbing = this.jumping ? 0 : sin(frameCount * 0.1) * 3;
         camera(
-            this.position.x, this.position.y, this.position.z,
-            0, 0, 0,
+            this.position.x, 
+            this.position.y + bobbing, 
+            this.position.z,
+            this.position.x + this.lookX * 100,
+            this.position.y + bobbing,
+            this.position.z + this.lookZ * 100,
             0, 1, 0
         );
+
+        // Colisión con monedas y enemigos
+        this.checkCollisions();
+    }
+
+    checkCollisions() {
+        // Revisar colisiones con monedas
+        for (let i = coins.length - 1; i >= 0; i--) {
+            if (dist(this.position.x, this.position.z, coins[i].x, coins[i].z) < 30) {
+                this.score += 100;
+                coins.splice(i, 1);
+            }
+        }
+
+        // Revisar colisiones con goombas
+        for (let goomba of goombas) {
+            if (dist(this.position.x, this.position.z, goomba.x, goomba.z) < 40) {
+                gameState = 'gameOver';
+            }
+        }
     }
 }
 
@@ -107,26 +281,19 @@ function updateProximityWarning(distance) {
     }
 
 function updateGame() {
-    if (timeLeft > 0) {
-        timeLeft -= deltaTime / 1000;
-        document.getElementById('time').textContent = timeLeft.toFixed(2);
+    if (gameState === 'playing') {
+        // Asegurarse de que el mundo está visible
+        clear();
+        background(135, 206, 235); // Color de cielo
         
-        if (timeLeft <= 0) {
-            gameOver();
+        if (timeLeft > 0) {
+            timeLeft -= deltaTime / 1000;
+            document.getElementById('time').textContent = timeLeft.toFixed(2);
+            
+            if (timeLeft <= 0) {
+                gameOver();
+            }
         }
-    }
-
-    // Actualizar y mostrar elementos del juego
-    player.update();
-    obstacle.display();
-    dangerZone.update();
-    
-    // Verificar proximidad y actualizar indicadores
-    const distance = dist(player.position.x, player.position.y, player.position.z,
-                         dangerZone.position.x, dangerZone.position.y, dangerZone.position.z);
-    
-    updateProximityWarning(distance);
-}
 
 function displayStartScreen() {
     // La interfaz de inicio se maneja con HTML
