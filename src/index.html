@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarioFlash - MVP</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="game-canvas"></div>
+        <div id="hud">
+            <div id="timer">Tiempo: <span id="time">10.00</span></div>
+            <div id="proximity-warning" class="hidden">¡ZONA DE RIESGO!</div>
+            <div id="danger-indicator" class="hidden">
+                DISTANCIA<br>
+                <span id="distance">0</span>m
+            </div>
+            <div id="options">
+                <div class="option" id="optionA">Opción A: Presiona A</div>
+                <div class="option" id="optionB">Opción B: Presiona B</div>
+            </div>
+        </div>
+        <div id="game-messages">
+            <div id="start-message">Presiona ESPACIO para comenzar</div>
+            <div id="game-over" class="hidden">¡Tiempo Agotado!</div>
+            <div id="success" class="hidden">¡Lo lograste!</div>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
