@@ -14,18 +14,37 @@ const BLOCK_SIZE = 100; // Bloques más grandes para mejor escala
 
 // Precarga de texturas y recursos
 function preload() {
-    // Usar colores básicos inicialmente para evitar problemas de carga
-    platformTexture = createGraphics(64, 64);
-    platformTexture.background(100, 200, 100);
-    
+    // Crear textura de bloque estilo Mario Bros
     brickTexture = createGraphics(64, 64);
-    brickTexture.background(200, 100, 50);
+    brickTexture.background(202, 77, 62); // Color ladrillo Mario
+    brickTexture.fill(0, 0, 0, 50);
+    brickTexture.noStroke();
+    brickTexture.rect(0, 32, 64, 2); // Línea horizontal
+    brickTexture.rect(32, 0, 2, 64); // Línea vertical
     
+    // Textura para la plataforma
+    platformTexture = createGraphics(64, 64);
+    platformTexture.background(94, 145, 254); // Azul Mario Bros
+    platformTexture.fill(255, 255, 255, 30);
+    platformTexture.noStroke();
+    platformTexture.rect(0, 0, 32, 32);
+    platformTexture.rect(32, 32, 32, 32);
+    
+    // Textura para monedas
     coinTexture = createGraphics(64, 64);
     coinTexture.background(255, 215, 0);
+    coinTexture.fill(255, 235, 100);
+    coinTexture.ellipse(32, 32, 48, 48);
     
-    goombaTexture = createGraphics(64, 64);
-    goombaTexture.background(139, 69, 19);
+    // Textura para el personaje (círculo rojo con bigote)
+    playerTexture = createGraphics(128, 128);
+    playerTexture.background(255, 0, 0); // Rojo Mario
+    playerTexture.fill(255, 220, 180); // Color piel
+    playerTexture.ellipse(64, 50, 60, 60); // Cara
+    playerTexture.fill(0); // Negro para el bigote
+    playerTexture.arc(64, 60, 40, 20, 0, PI); // Bigote
+    playerTexture.fill(255, 0, 0); // Rojo para la gorra
+    playerTexture.arc(64, 40, 60, 40, PI, TWO_PI); // Gorra
 }
 
 function setup() {
@@ -62,11 +81,21 @@ function setup() {
 }
 
 function draw() {
-    background(135, 206, 235); // Color de cielo
+    // Cielo azul brillante estilo Mario Bros
+    background(107, 140, 255);
+    
     push();
     noStroke();
-    fill(255);
-    // Añadir algunas nubes básicas en el fondo
+    
+    // Dibuja el sol
+    push();
+    translate(-width/3, -height/3, -500);
+    fill(255, 255, 200);
+    sphere(100);
+    pop();
+    
+    // Nubes estilo Mario Bros
+    fill(255, 255, 255);
     for(let i = 0; i < 10; i++) {
         push();
         translate(
@@ -74,7 +103,11 @@ function draw() {
             -200, 
             cos(frameCount * 0.001 + i) * height
         );
-        box(100, 50, 100);
+        // Nube estilo Mario Bros (múltiples esferas)
+        for(let j = 0; j < 3; j++) {
+            translate(30 * j, sin(frameCount * 0.05 + j) * 5, 0);
+            sphere(30);
+        }
         pop();
     }
     
@@ -103,6 +136,14 @@ class Player {
         this.fov = 90;
         this.minFov = 60;
         this.maxFov = 120;
+        this.size = 50;
+        this.bobAmount = 0;
+        this.isMoving = false;
+        
+        // Propiedades de animación del personaje
+        this.animationFrame = 0;
+        this.blinkTime = 0;
+        this.mustacheAngle = 0;
         this.bobbingAmount = 0;
         this.bobbingSpeed = 0.1;
         this.runningEffect = 0;
@@ -181,6 +222,18 @@ class Player {
         this.lookX = sin(this.rotation);
         this.lookZ = -cos(this.rotation);
 
+        update() {
+        // Animación del personaje
+        this.animationFrame += 0.1;
+        this.mustacheAngle = sin(this.animationFrame) * 0.1;
+        
+        if (frameCount % 180 === 0) {
+            this.blinkTime = 5;
+        }
+        if (this.blinkTime > 0) {
+            this.blinkTime--;
+        }
+        
         // Ajustar FOV con las teclas Q y E
         if (keyIsDown(81)) { // Q - Reducir FOV
             this.fov = max(this.minFov, this.fov - 1);
